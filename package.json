@@ -1,0 +1,17 @@
+{
+  "name": "processing-engine",
+  "version": "1.0.0",
+  "description": "Asynchronous Task Processing Service",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Vlad Bereznyuk",
+  "license": "ISC",
+  "devDependencies": {
+    "express": "^4.21.2",
+    "nodemon": "^3.1.9"
+  }
+}
