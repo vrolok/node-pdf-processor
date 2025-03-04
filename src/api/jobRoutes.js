@@ -1,20 +1,38 @@
 const express = require('express');
 const router = express.Router();
 const { createJob, updateJobStatus } = require('../domain/jobManagement');
-const { saveJob, notifyJobStatusChange } = require('../integration/jobIntegration');
+const { 
+  saveJob, 
+  notifyJobStatusChange,
+  fetchJobFromFirebase 
+} = require('../integration/jobIntegration');
 const queueManager = require('../queue/jobQueueManager');
 
 // In-memory job storage for this example
-// In a real app, this would be replaced with Firebase or another database
+// Acts as a fallback if Firebase fetch fails
 const jobStore = new Map();
 
 /**
  * Helper function to find a job by ID
+ * Primary implementation uses Firebase, falls back to in-memory if not found
  * @param {string} jobId - The job ID to look for
- * @returns {Object|null} The job object or null if not found
+ * @returns {Promise<Object|null>} A promise that resolves to the job object or null if not found
  */
-const findJobById = (jobId) => {
-  return jobStore.get(jobId) || null;
+const findJobById = async (jobId) => {
+  try {
+    // Try to fetch from Firebase first
+    const firebaseJob = await fetchJobFromFirebase(jobId);
+    if (firebaseJob) {
+      return firebaseJob;
+    }
+    
+    // Fall back to in-memory store if not found in Firebase
+    console.log(`Job ${jobId} not found in Firebase, checking in-memory store`);
+    return jobStore.get(jobId) || null;
+  } catch (error) {
+    console.warn(`Error fetching job ${jobId} from Firebase, falling back to in-memory:`, error);
+    return jobStore.get(jobId) || null;
+  }
 };
 
 /**
@@ -57,7 +75,7 @@ router.post('/api/v1/jobs', async (req, res) => {
 router.get('/api/v1/jobs/:jobId', async (req, res) => {
   try {
     const jobId = req.params.jobId;
-    const job = findJobById(jobId);
+    const job = await findJobById(jobId);
     
     if (!job) {
       return res.status(404).json({
@@ -84,7 +102,7 @@ router.get('/api/v1/jobs/:jobId', async (req, res) => {
 router.get('/api/v1/jobs/:jobId/status', async (req, res) => {
   try {
     const jobId = req.params.jobId;
-    const job = findJobById(jobId);
+    const job = await findJobById(jobId);
     
     if (!job) {
       return res.status(404).json({
@@ -161,7 +179,7 @@ const calculateJobProgress = (job) => {
 router.delete('/api/v1/jobs/:jobId', async (req, res) => {
   try {
     const jobId = req.params.jobId;
-    const job = findJobById(jobId);
+    const job = await findJobById(jobId);
     
     // Check if job exists
     if (!job) {
@@ -224,7 +242,7 @@ router.delete('/api/v1/jobs/:jobId', async (req, res) => {
 router.put('/api/v1/jobs/:jobId/retry', async (req, res) => {
   try {
     const jobId = req.params.jobId;
-    const job = findJobById(jobId);
+    const job = await findJobById(jobId);
     
     // Check if job exists
     if (!job) {
